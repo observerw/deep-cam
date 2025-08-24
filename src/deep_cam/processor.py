@@ -86,7 +86,9 @@ class FaceSwapper(FrameProcessor):
         return model
 
     def process_frame(self, frame: Frame) -> Frame:
-        source_face = self.face_analyzer.get_one_face(frame)
+        # color correction
+        temp_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        source_face = self.face_analyzer.get_one_face(temp_frame)
         if not source_face:
             return frame
 

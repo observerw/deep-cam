@@ -11,7 +11,10 @@ class FaceAnalyzer:
     def analyzer(self) -> FaceAnalysis:
         analyser = FaceAnalysis(
             name="buffalo_l",
-            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
+            providers=[
+                "CUDAExecutionProvider",
+                "CPUExecutionProvider",
+            ],
         )
         analyser.prepare(ctx_id=0, det_size=(640, 640))
         return analyser

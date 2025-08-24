@@ -196,7 +196,8 @@ def setup_ssh_tunnel(
 
 
 def start_ffmpeg_stream(
-    camera_index: int,
+    camera_index: Optional[int] = None,
+    video_path: Optional[str] = None,
     tcp_port: int = 8554,
     resolution: str = "640x480",
     fps: int = 30,
@@ -205,7 +206,8 @@ def start_ffmpeg_stream(
     """使用FFmpeg启动TCP服务器和视频流
 
     Args:
-        camera_index: 摄像头索引
+        camera_index: 摄像头索引（与video_path二选一）
+        video_path: 视频文件路径（与camera_index二选一）
         tcp_port: TCP端口号
         resolution: 视频分辨率
         fps: 帧率
@@ -214,7 +216,36 @@ def start_ffmpeg_stream(
     width, height = resolution.split("x")
 
     # 构建FFmpeg命令 - 使用TCP输出
-    if sys.platform == "darwin":  # macOS
+    if video_path:
+        # 使用视频文件作为输入
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-re",  # 以原始帧率读取输入
+            "-i",
+            video_path,
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",  # 最快编码速度
+            "-tune",
+            "zerolatency",  # 零延迟调优
+            "-b:v",
+            "2000k",  # 2Mbps码率
+            "-maxrate",
+            "2000k",
+            "-bufsize",
+            "4000k",
+            "-g",
+            "30",  # 关键帧间隔
+            "-profile:v",
+            "baseline",  # 基线配置文件，兼容性好
+            "-pix_fmt",
+            "yuv420p",
+            "-f",
+            "mpegts",
+            f"tcp://0.0.0.0:{tcp_port}?listen=1",
+        ]
+    elif sys.platform == "darwin":  # macOS 摄像头
         ffmpeg_cmd = [
             "ffmpeg",
             "-f",
@@ -247,7 +278,7 @@ def start_ffmpeg_stream(
             "mpegts",
             f"tcp://0.0.0.0:{tcp_port}?listen=1",
         ]
-    else:  # Linux
+    else:  # Linux 摄像头
         ffmpeg_cmd = [
             "ffmpeg",
             "-f",
@@ -282,9 +313,12 @@ def start_ffmpeg_stream(
         ]
 
     print("\n启动FFmpeg视频流...")
-    print(f"摄像头索引: {camera_index}")
-    print(f"分辨率: {resolution}")
-    print(f"帧率: {fps} fps")
+    if video_path:
+        print(f"视频文件: {video_path}")
+    else:
+        print(f"摄像头索引: {camera_index}")
+        print(f"分辨率: {resolution}")
+        print(f"帧率: {fps} fps")
     print(f"TCP地址: tcp://0.0.0.0:{tcp_port}")
 
     if ssh_process:
@@ -373,16 +407,24 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""示例:
   %(prog)s --camera 0 --port 8554 --resolution 1280x720 --fps 30
+  %(prog)s --video-path /path/to/video.mp4 --port 8554
   %(prog)s --camera 1 --ssh-host example.com --push-port 8080:8080 --pull-port 8081:8081
-  %(prog)s --list-cameras  # 列出可用摄像头""",
+  %(prog)s --list-cameras  # 列出可用摄像头"""
     )
 
-    # 摄像头相关参数
-    parser.add_argument(
+    # 输入源参数
+    input_group = parser.add_mutually_exclusive_group()
+    input_group.add_argument(
         "--camera",
         "-c",
         type=int,
         help="摄像头索引 (如果不指定，将自动选择第一个可用摄像头)",
+    )
+    input_group.add_argument(
+        "--video-path",
+        "-v",
+        type=str,
+        help="视频文件路径 (与摄像头输入互斥)",
     )
     parser.add_argument(
         "--list-cameras", action="store_true", help="列出所有可用摄像头并退出"
@@ -435,6 +477,13 @@ def validate_args(args):
     if not (1 <= args.ssh_port <= 65535):
         print(f"错误: SSH端口 {args.ssh_port} 应在 1-65535 范围内")
         sys.exit(1)
+
+    # 验证视频文件路径
+    if hasattr(args, 'video_path') and args.video_path:
+        import os
+        if not os.path.isfile(args.video_path):
+            print(f"错误: 视频文件不存在: {args.video_path}")
+            sys.exit(1)
 
     # 验证端口映射格式
     if args.push_port:
@@ -496,15 +545,24 @@ def main():
 
     print("✓ 使用FFmpeg TCP输出")
 
-    # 选择摄像头
-    camera_index = select_camera(args.camera)
+    # 选择输入源
+    camera_index = None
+    video_path = getattr(args, 'video_path', None)
+    
+    if video_path:
+        print(f"✓ 使用视频文件: {video_path}")
+    else:
+        camera_index = select_camera(args.camera)
 
     # 显示配置信息
     print("\n配置信息:")
-    print(f"  摄像头索引: {camera_index}")
+    if video_path:
+        print(f"  视频文件: {video_path}")
+    else:
+        print(f"  摄像头索引: {camera_index}")
+        print(f"  分辨率: {args.resolution}")
+        print(f"  帧率: {args.fps} fps")
     print(f"  TCP端口: {args.port}")
-    print(f"  分辨率: {args.resolution}")
-    print(f"  帧率: {args.fps} fps")
 
     if args.ssh_host:
         print(f"  SSH主机: {args.ssh_host}:{args.ssh_port}")
@@ -544,11 +602,12 @@ def main():
     # 启动视频流
     try:
         start_ffmpeg_stream(
-            camera_index,
-            args.port,
-            args.resolution,
-            args.fps,
-            ssh_process,
+            camera_index=camera_index,
+            video_path=video_path,
+            tcp_port=args.port,
+            resolution=args.resolution,
+            fps=args.fps,
+            ssh_process=ssh_process,
         )
     finally:
         # 如果TCP查看器在运行，等待其结束
