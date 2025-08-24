@@ -70,7 +70,7 @@ class FaceSwapper(FrameProcessor):
         assert isinstance(target_face_image, Frame)
         face = self.face_analyzer.get_one_face(target_face_image)
         if not face:
-            raise ValueError("No face found in target_face_image")
+            raise ValueError("No face found in target face image")
         return face
 
     @cached_property

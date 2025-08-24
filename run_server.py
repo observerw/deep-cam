@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 from deep_cam.capture import VideoCapture
-from deep_cam.processor import FaceSwapper
+from deep_cam.processor import FaceEnhancer, FaceSwapper
 
 
 def setup_logging(level: str = "INFO"):
@@ -102,6 +102,7 @@ def main():
         face_swapper = FaceSwapper(
             model_path=args.model_path, target_image_path=args.target_image
         )
+        face_enhancer = FaceEnhancer(model_path=args.model_path)
 
         # 创建视频捕获器
         logger.info("初始化视频捕获器...")
@@ -110,7 +111,7 @@ def main():
         logger.info(f"输出分辨率: {args.width}x{args.height}@{args.fps}fps")
 
         video_capture = VideoCapture(
-            processor=face_swapper,
+            processors=[face_swapper, face_enhancer],
             tcp_url=args.input_tcp,
             tcp_output_url=args.output_tcp,
             output_width=args.width,

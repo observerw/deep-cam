@@ -2,7 +2,7 @@ import logging
 import subprocess
 import threading
 import time
-from typing import Optional
+from typing import List, Optional
 
 import cv2
 
@@ -13,7 +13,7 @@ from .types import Frame
 class VideoCapture:
     def __init__(
         self,
-        processor: FrameProcessor,
+        processors: List[FrameProcessor],
         tcp_url: str,
         tcp_output_url: str = "tcp://localhost:8554",
         output_width: int = 640,
@@ -21,7 +21,7 @@ class VideoCapture:
         fps: int = 30,
     ):
         self.tcp_url = tcp_url
-        self.processor = processor
+        self.processors = processors
         self.tcp_output_url = tcp_output_url
         self.output_width = output_width
         self.output_height = output_height
@@ -117,8 +117,15 @@ class VideoCapture:
     def _process_frame(self, frame: Frame) -> Optional[Frame]:
         """处理单帧图像"""
         try:
-            # 使用处理器处理帧
-            processed_frame = self.processor.process_frame(frame)
+            # 依次使用所有处理器处理帧
+            processed_frame = frame
+            for processor in self.processors:
+                processed_frame = processor.process_frame(processed_frame)
+                if processed_frame is None:
+                    self.logger.warning(
+                        f"处理器 {processor.__class__.__name__} 返回了 None"
+                    )
+                    return None
 
             # 调整帧大小以匹配输出尺寸
             if processed_frame.shape[:2] != (self.output_height, self.output_width):
