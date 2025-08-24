@@ -33,7 +33,7 @@ class FaceEnhancer(FrameProcessor):
     @cached_property
     def enhancer(self) -> GFPGANer:
         return gfpgan.GFPGANer(
-            model_path=self.model_path,
+            model_path=self.model_path.as_posix(),
             upscale=1,
             device=torch.device("cuda"),
         )
@@ -66,7 +66,7 @@ class FaceSwapper(FrameProcessor):
 
     @cached_property
     def target_face(self) -> Face:
-        target_face_image = cv2.imread(str(self.target_image_path))
+        target_face_image = cv2.imread(self.target_image_path.as_posix())
         assert isinstance(target_face_image, Frame)
         face = self.face_analyzer.get_one_face(target_face_image)
         if not face:
@@ -74,9 +74,9 @@ class FaceSwapper(FrameProcessor):
         return face
 
     @cached_property
-    def swapper(self):
+    def swapper(self) -> INSwapper:
         model = insightface.model_zoo.get_model(
-            self.model_path,
+            self.model_path.as_posix(),
             providers=[
                 "CUDAExecutionProvider",
                 "CPUExecutionProvider",
