@@ -160,13 +160,13 @@ def setup_ssh_tunnel(
     # 添加推流端口转发 (本地端口转发到远程)
     if push_port_mapping:
         local_port, remote_port = parse_port_mapping(push_port_mapping)
-        ssh_cmd.extend(["-R", f"{local_port}:localhost:{remote_port}"])
+        ssh_cmd.extend(["-R", f"{local_port}:0.0.0.0:{remote_port}"])
         print(f"设置推流端口转发: 本地:{local_port} -> 远程:{remote_port}")
 
     # 添加拉流端口转发 (远程端口转发到本地)
     if pull_port_mapping:
         local_port, remote_port = parse_port_mapping(pull_port_mapping)
-        ssh_cmd.extend(["-R", f"{remote_port}:localhost:{local_port}"])
+        ssh_cmd.extend(["-L", f"{remote_port}:0.0.0.0:{local_port}"])
         print(f"设置拉流端口转发: 远程:{remote_port} -> 本地:{local_port}")
 
     ssh_cmd.append(ssh_host)
@@ -219,12 +219,12 @@ def start_ffmpeg_stream(
             "ffmpeg",
             "-f",
             "avfoundation",
-            "-video_device_index",
-            str(camera_index),
             "-framerate",
             str(fps),
             "-video_size",
             resolution,
+            "-i",
+            str(camera_index),
             "-c:v",
             "libx264",
             "-preset",
@@ -245,7 +245,7 @@ def start_ffmpeg_stream(
             "yuv420p",
             "-f",
             "mpegts",
-            f"tcp://127.0.0.1:{tcp_port}?listen=1",
+            f"tcp://0.0.0.0:{tcp_port}?listen=1",
         ]
     else:  # Linux
         ffmpeg_cmd = [
@@ -278,14 +278,14 @@ def start_ffmpeg_stream(
             "yuv420p",
             "-f",
             "mpegts",
-            f"tcp://127.0.0.1:{tcp_port}?listen=1",
+            f"tcp://0.0.0.0:{tcp_port}?listen=1",
         ]
 
     print("\n启动FFmpeg视频流...")
     print(f"摄像头索引: {camera_index}")
     print(f"分辨率: {resolution}")
     print(f"帧率: {fps} fps")
-    print(f"TCP地址: tcp://127.0.0.1:{tcp_port}")
+    print(f"TCP地址: tcp://0.0.0.0:{tcp_port}")
 
     if ssh_process:
         print("\n✓ SSH隧道已建立，视频流将通过SSH转发")
@@ -295,8 +295,8 @@ def start_ffmpeg_stream(
 
     try:
         print("提示: 可以使用以下命令查看TCP流:")
-        print(f"ffplay tcp://127.0.0.1:{tcp_port}")
-        print(f"或者: vlc tcp://127.0.0.1:{tcp_port}")
+        print(f"ffplay tcp://0.0.0.0:{tcp_port}")
+        print(f"或者: vlc tcp://0.0.0.0:{tcp_port}")
 
         if ssh_process:
             print("\n注意: 如果配置了SSH端口转发，请使用相应的转发端口访问视频流")
@@ -530,7 +530,7 @@ def main():
     viewer_thread = None
     if args.viewer and args.pull_port:
         local_port, _ = parse_port_mapping(args.pull_port)
-        tcp_url = f"tcp://127.0.0.1:{local_port}"
+        tcp_url = f"tcp://0.0.0.0:{local_port}"
         print(f"\n将在单独窗口中显示TCP流: {tcp_url}")
 
         # 在单独线程中启动TCP查看器

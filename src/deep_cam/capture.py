@@ -1,4 +1,5 @@
 import logging
+import subprocess
 import threading
 import time
 from typing import Optional
@@ -27,24 +28,47 @@ class VideoCapture:
         self.fps = fps
 
         self.cap: Optional[cv2.VideoCapture] = None
-        self.writer: Optional[cv2.VideoWriter] = None
+        self.ffmpeg_process: Optional[subprocess.Popen] = None
         self.running = False
         self.thread: Optional[threading.Thread] = None
 
         # 设置日志
         self.logger = logging.getLogger(__name__)
 
-    def _create_gstreamer_pipeline(self) -> str:
-        """创建 GStreamer TCP 输出管道"""
-        pipeline = (
-            f"appsrc ! "
-            f"videoconvert ! "
-            f"video/x-raw,format=I420,width={self.output_width},height={self.output_height},framerate={self.fps}/1 ! "
-            f"x264enc tune=zerolatency bitrate=2000 speed-preset=superfast ! "
-            f"h264parse ! "
-            f"tcpserversink host=0.0.0.0 port=8554"
-        )
-        return pipeline
+    def _create_ffmpeg_command(self) -> list[str]:
+        """创建 FFmpeg TCP 输出命令"""
+        # 从tcp_output_url解析端口号
+        port = "8554"
+        if "://" in self.tcp_output_url:
+            port = self.tcp_output_url.split(":")[-1]
+
+        command = [
+            "ffmpeg",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "bgr24",
+            "-s",
+            f"{self.output_width}x{self.output_height}",
+            "-r",
+            str(self.fps),
+            "-i",
+            "-",  # 从stdin读取
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-tune",
+            "zerolatency",
+            "-b:v",
+            "2000k",
+            "-f",
+            "mpegts",
+            "-listen",
+            "1",
+            f"tcp://0.0.0.0:{port}",
+        ]
+        return command
 
     def _initialize_capture(self) -> bool:
         """初始化视频捕获"""
@@ -65,24 +89,29 @@ class VideoCapture:
             return False
 
     def _initialize_writer(self) -> bool:
-        """初始化 GStreamer 输出"""
+        """初始化 FFmpeg 输出"""
         try:
-            pipeline = self._create_gstreamer_pipeline()
-            fourcc = cv2.VideoWriter.fourcc(*"H264")
+            command = self._create_ffmpeg_command()
 
-            self.writer = cv2.VideoWriter(
-                pipeline, fourcc, self.fps, (self.output_width, self.output_height)
+            self.ffmpeg_process = subprocess.Popen(
+                command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=0,
             )
 
-            if not self.writer.isOpened():
-                self.logger.error("无法初始化 GStreamer 输出")
+            if self.ffmpeg_process.poll() is not None:
+                self.logger.error("无法启动 FFmpeg 进程")
                 return False
 
-            self.logger.info(f"TCP 服务器已初始化，输出URL: {self.tcp_output_url}")
+            self.logger.info(
+                f"FFmpeg TCP 服务器已初始化，输出URL: {self.tcp_output_url}"
+            )
             return True
 
         except Exception as e:
-            self.logger.error(f"初始化 GStreamer 输出失败: {e}")
+            self.logger.error(f"初始化 FFmpeg 输出失败: {e}")
             return False
 
     def _process_frame(self, frame: Frame) -> Optional[Frame]:
@@ -128,12 +157,28 @@ class VideoCapture:
                 if processed_frame is None:
                     continue
 
-                # 检查写入器是否有效
-                if self.writer is None:
+                # 检查FFmpeg进程是否有效
+                if (
+                    self.ffmpeg_process is None
+                    or self.ffmpeg_process.poll() is not None
+                ):
+                    self.logger.error("FFmpeg进程已终止")
                     break
 
-                # 输出帧
-                self.writer.write(processed_frame)
+                # 输出帧到FFmpeg
+                try:
+                    if self.ffmpeg_process.stdin is None:
+                        self.logger.error("FFmpeg stdin不可用")
+                        break
+                    frame_bytes = processed_frame.tobytes()
+                    self.ffmpeg_process.stdin.write(frame_bytes)
+                    self.ffmpeg_process.stdin.flush()
+                except BrokenPipeError:
+                    self.logger.error("FFmpeg管道已断开")
+                    break
+                except Exception as e:
+                    self.logger.error(f"写入FFmpeg失败: {e}")
+                    break
 
                 # 控制帧率
                 elapsed = time.time() - start_time
@@ -191,9 +236,19 @@ class VideoCapture:
             self.cap.release()
             self.cap = None
 
-        if self.writer:
-            self.writer.release()
-            self.writer = None
+        if self.ffmpeg_process:
+            try:
+                if self.ffmpeg_process.stdin:
+                    self.ffmpeg_process.stdin.close()
+                self.ffmpeg_process.terminate()
+                self.ffmpeg_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.ffmpeg_process.kill()
+                self.ffmpeg_process.wait()
+            except Exception as e:
+                self.logger.error(f"终止FFmpeg进程失败: {e}")
+            finally:
+                self.ffmpeg_process = None
 
         self.logger.info("视频捕获已停止")
 
