@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Deep Cam Server - RTSP视频流处理服务器
+Deep Cam Server - TCP视频流处理服务器
 
-使用人脸交换技术处理RTSP视频流并输出到新的RTSP流
+使用人脸交换技术处理TCP视频流并输出到新的TCP流
 """
 
 import argparse
@@ -34,17 +34,17 @@ def signal_handler(signum, frame):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Deep Cam Server - RTSP视频流人脸交换处理服务器",
+        description="Deep Cam Server - TCP视频流人脸交换处理服务器",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     # 输入输出配置
-    parser.add_argument("--input-rtsp", type=str, required=True, help="输入RTSP流地址")
+    parser.add_argument("--input-tcp", type=str, required=True, help="输入TCP流地址")
     parser.add_argument(
-        "--output-rtsp",
+        "--output-tcp",
         type=str,
-        default="rtsp://localhost:8554/stream",
-        help="输出RTSP流地址",
+        default="tcp://localhost:8554",
+        help="输出TCP流地址",
     )
 
     # 模型配置
@@ -105,14 +105,14 @@ def main():
 
         # 创建视频捕获器
         logger.info("初始化视频捕获器...")
-        logger.info(f"输入RTSP: {args.input_rtsp}")
-        logger.info(f"输出RTSP: {args.output_rtsp}")
+        logger.info(f"输入TCP: {args.input_tcp}")
+        logger.info(f"输出TCP: {args.output_tcp}")
         logger.info(f"输出分辨率: {args.width}x{args.height}@{args.fps}fps")
 
         video_capture = VideoCapture(
             processor=face_swapper,
-            rtsp_url=args.input_rtsp,
-            rtsp_output_url=args.output_rtsp,
+            tcp_url=args.input_tcp,
+            tcp_output_url=args.output_tcp,
             output_width=args.width,
             output_height=args.height,
             fps=args.fps,
@@ -125,7 +125,7 @@ def main():
             sys.exit(1)
 
         logger.info("服务器已启动，按 Ctrl+C 停止")
-        logger.info(f"输出流地址: {args.output_rtsp}")
+        logger.info(f"输出流地址: {args.output_tcp}")
 
         # 保持运行直到收到信号
         try:

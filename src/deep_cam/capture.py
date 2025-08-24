@@ -13,15 +13,15 @@ class VideoCapture:
     def __init__(
         self,
         processor: FrameProcessor,
-        rtsp_url: str,
-        rtsp_output_url: str = "rtsp://localhost:8554/stream",
+        tcp_url: str,
+        tcp_output_url: str = "tcp://localhost:8554",
         output_width: int = 640,
         output_height: int = 480,
         fps: int = 30,
     ):
-        self.rtsp_url = rtsp_url
+        self.tcp_url = tcp_url
         self.processor = processor
-        self.rtsp_output_url = rtsp_output_url
+        self.tcp_output_url = tcp_output_url
         self.output_width = output_width
         self.output_height = output_height
         self.fps = fps
@@ -35,29 +35,29 @@ class VideoCapture:
         self.logger = logging.getLogger(__name__)
 
     def _create_gstreamer_pipeline(self) -> str:
-        """创建 GStreamer RTSP 输出管道"""
+        """创建 GStreamer TCP 输出管道"""
         pipeline = (
             f"appsrc ! "
             f"videoconvert ! "
             f"video/x-raw,format=I420,width={self.output_width},height={self.output_height},framerate={self.fps}/1 ! "
             f"x264enc tune=zerolatency bitrate=2000 speed-preset=superfast ! "
-            f"rtph264pay config-interval=1 pt=96 ! "
-            f"rtspsink location={self.rtsp_output_url}"
+            f"h264parse ! "
+            f"tcpserversink host=0.0.0.0 port=8554"
         )
         return pipeline
 
     def _initialize_capture(self) -> bool:
         """初始化视频捕获"""
         try:
-            self.cap = cv2.VideoCapture(self.rtsp_url)
+            self.cap = cv2.VideoCapture(self.tcp_url)
             if not self.cap.isOpened():
-                self.logger.error(f"无法打开 RTSP 流: {self.rtsp_url}")
+                self.logger.error(f"无法打开 TCP 流: {self.tcp_url}")
                 return False
 
             # 设置缓冲区大小以减少延迟
             self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-            self.logger.info(f"成功连接到 RTSP 流: {self.rtsp_url}")
+            self.logger.info(f"成功连接到 TCP 流: {self.tcp_url}")
             return True
 
         except Exception as e:
@@ -78,7 +78,7 @@ class VideoCapture:
                 self.logger.error("无法初始化 GStreamer 输出")
                 return False
 
-            self.logger.info(f"RTSP 服务器已初始化，输出URL: {self.rtsp_output_url}")
+            self.logger.info(f"TCP 服务器已初始化，输出URL: {self.tcp_output_url}")
             return True
 
         except Exception as e:
@@ -146,7 +146,7 @@ class VideoCapture:
                 break
 
     def _reconnect(self) -> bool:
-        """重新连接 RTSP 流"""
+        """重新连接 TCP 流"""
         try:
             if self.cap:
                 self.cap.release()
