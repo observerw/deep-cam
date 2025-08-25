@@ -1,4 +1,4 @@
-python run_client_ffmpeg.py \
+python run_client.py \
     --camera 0 \
     --port 8000 \
     --ssh-host root@connect.westc.gpuhub.com \

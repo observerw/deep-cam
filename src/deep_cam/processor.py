@@ -34,7 +34,7 @@ class FaceEnhancer(FrameProcessor):
     def enhancer(self) -> GFPGANer:
         return gfpgan.GFPGANer(
             model_path=self.model_path.as_posix(),
-            upscale=1,
+            upscale=2,
             device=torch.device("cuda"),
         )
 
@@ -58,17 +58,17 @@ class FaceEnhancer(FrameProcessor):
 @dataclass
 class FaceSwapper(FrameProcessor):
     model_path: Path
-    target_image_path: Path
+    source_image_path: Path
 
     @cached_property
     def face_analyzer(self) -> FaceAnalyzer:
         return FaceAnalyzer()
 
     @cached_property
-    def target_face(self) -> Face:
-        target_face_image = cv2.imread(self.target_image_path.as_posix())
-        assert isinstance(target_face_image, Frame)
-        face = self.face_analyzer.get_one_face(target_face_image)
+    def source_face(self) -> Face:
+        source_face_image = cv2.imread(self.source_image_path.as_posix())
+        assert isinstance(source_face_image, Frame)
+        face = self.face_analyzer.get_one_face(source_face_image)
         if not face:
             raise ValueError("No face found in target face image")
         return face
@@ -87,15 +87,14 @@ class FaceSwapper(FrameProcessor):
 
     def process_frame(self, frame: Frame) -> Frame:
         # color correction
-        temp_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        source_face = self.face_analyzer.get_one_face(temp_frame)
-        if not source_face:
+        target_face = self.face_analyzer.get_one_face(frame)
+        if not target_face:
             return frame
 
         swapped_frame = self.swapper.get(
             img=frame,
-            target_face=self.target_face,
-            source_face=source_face,
+            source_face=self.source_face,
+            target_face=target_face,
             paste_back=True,
         )
         assert isinstance(swapped_frame, Frame)

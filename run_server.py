@@ -49,10 +49,14 @@ def main():
 
     # 模型配置
     parser.add_argument(
-        "--model-path",
+        "--swapper-model",
         type=Path,
-        default=Path("models/inswapper_128_fp16.onnx"),
         help="人脸交换模型路径",
+    )
+    parser.add_argument(
+        "--enhancer-model",
+        type=Path,
+        help="人脸增强模型路径",
     )
     parser.add_argument(
         "--target-image", type=Path, default=Path("face.jpg"), help="目标人脸图像路径"
@@ -79,12 +83,17 @@ def main():
     logger = logging.getLogger(__name__)
 
     # 验证文件存在性
-    if not args.model_path.exists():
-        logger.error(f"模型文件不存在: {args.model_path}")
+    if args.swapper_model and not args.swapper_model.exists():
+        logger.error(f"人脸交换模型文件不存在: {args.swapper_model}")
         logger.info("请参考 models/instructions.txt 下载所需模型文件")
         sys.exit(1)
 
-    if not args.target_image.exists():
+    if args.enhancer_model and not args.enhancer_model.exists():
+        logger.error(f"人脸增强模型文件不存在: {args.enhancer_model}")
+        logger.info("请参考 models/instructions.txt 下载所需模型文件")
+        sys.exit(1)
+
+    if args.swapper_model and not args.target_image.exists():
         logger.error(f"目标图像文件不存在: {args.target_image}")
         sys.exit(1)
 
@@ -94,15 +103,31 @@ def main():
 
     video_capture = None
     try:
-        # 创建人脸交换处理器
-        logger.info("初始化人脸交换处理器...")
-        logger.info(f"模型路径: {args.model_path}")
-        logger.info(f"目标图像: {args.target_image}")
+        # 创建处理器列表
+        processors = []
 
-        face_swapper = FaceSwapper(
-            model_path=args.model_path, target_image_path=args.target_image
-        )
-        face_enhancer = FaceEnhancer(model_path=args.model_path)
+        # 创建人脸交换处理器（如果指定了模型）
+        if args.swapper_model:
+            logger.info("初始化人脸交换处理器...")
+            logger.info(f"交换模型路径: {args.swapper_model}")
+            logger.info(f"目标图像: {args.target_image}")
+            face_swapper = FaceSwapper(
+                model_path=args.swapper_model, source_image_path=args.target_image
+            )
+            processors.append(face_swapper)
+
+        # 创建人脸增强处理器（如果指定了模型）
+        if args.enhancer_model:
+            logger.info("初始化人脸增强处理器...")
+            logger.info(f"增强模型路径: {args.enhancer_model}")
+            face_enhancer = FaceEnhancer(model_path=args.enhancer_model)
+            processors.append(face_enhancer)
+
+        if not processors:
+            logger.error(
+                "至少需要指定一个处理器模型（--swapper-model 或 --enhancer-model）"
+            )
+            sys.exit(1)
 
         # 创建视频捕获器
         logger.info("初始化视频捕获器...")
@@ -111,7 +136,7 @@ def main():
         logger.info(f"输出分辨率: {args.width}x{args.height}@{args.fps}fps")
 
         video_capture = VideoCapture(
-            processors=[face_swapper, face_enhancer],
+            processors=processors,
             tcp_url=args.input_tcp,
             tcp_output_url=args.output_tcp,
             output_width=args.width,

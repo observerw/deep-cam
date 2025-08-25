@@ -409,7 +409,7 @@ def parse_args():
   %(prog)s --camera 0 --port 8554 --resolution 1280x720 --fps 30
   %(prog)s --video-path /path/to/video.mp4 --port 8554
   %(prog)s --camera 1 --ssh-host example.com --push-port 8080:8080 --pull-port 8081:8081
-  %(prog)s --list-cameras  # 列出可用摄像头"""
+  %(prog)s --list-cameras  # 列出可用摄像头""",
     )
 
     # 输入源参数
@@ -479,8 +479,9 @@ def validate_args(args):
         sys.exit(1)
 
     # 验证视频文件路径
-    if hasattr(args, 'video_path') and args.video_path:
+    if hasattr(args, "video_path") and args.video_path:
         import os
+
         if not os.path.isfile(args.video_path):
             print(f"错误: 视频文件不存在: {args.video_path}")
             sys.exit(1)
@@ -547,8 +548,8 @@ def main():
 
     # 选择输入源
     camera_index = None
-    video_path = getattr(args, 'video_path', None)
-    
+    video_path = getattr(args, "video_path", None)
+
     if video_path:
         print(f"✓ 使用视频文件: {video_path}")
     else:
