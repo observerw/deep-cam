@@ -1,3 +1,4 @@
+pip install -r requirements-client.txt
 python run_client.py \
     --camera 0 \
     --port 8000 \
