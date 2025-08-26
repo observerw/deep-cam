@@ -1,6 +1,6 @@
 pip install -r requirements-client.txt
 python run_client.py \
-    --camera 0 \
+    --camera 1 \
     --port 8000 \
     --ssh-host root@connect.westc.gpuhub.com \
     --ssh-port 27857 \

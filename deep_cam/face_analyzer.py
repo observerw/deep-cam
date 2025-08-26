@@ -13,7 +13,6 @@ class FaceAnalyzer:
             name="buffalo_l",
             providers=[
                 "CUDAExecutionProvider",
-                "CPUExecutionProvider",
             ],
         )
         analyser.prepare(ctx_id=0, det_size=(640, 640))

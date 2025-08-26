@@ -79,7 +79,6 @@ class FaceSwapper(FrameProcessor):
             self.model_path.as_posix(),
             providers=[
                 "CUDAExecutionProvider",
-                "CPUExecutionProvider",
             ],
         )
         assert isinstance(model, INSwapper)

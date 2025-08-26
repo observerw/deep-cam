@@ -120,7 +120,12 @@ class VideoCapture:
             # 依次使用所有处理器处理帧
             processed_frame = frame
             for processor in self.processors:
+                processor_start_time = time.perf_counter()
                 processed_frame = processor.process_frame(processed_frame)
+                processor_end_time = time.perf_counter()
+                self.logger.debug(
+                    f"处理器 {processor.__class__.__name__} 处理用时: {(processor_end_time - processor_start_time) * 1000:.2f} ms"
+                )
                 if processed_frame is None:
                     self.logger.warning(
                         f"处理器 {processor.__class__.__name__} 返回了 None"
