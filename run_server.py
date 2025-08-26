@@ -59,7 +59,7 @@ def main():
         help="人脸增强模型路径",
     )
     parser.add_argument(
-        "--target-image", type=Path, default=Path("face.jpg"), help="目标人脸图像路径"
+        "--source-image", type=Path, default=Path("source.jpg"), help="源人脸图像路径"
     )
 
     # 视频配置
@@ -93,8 +93,8 @@ def main():
         logger.info("请参考 models/instructions.txt 下载所需模型文件")
         sys.exit(1)
 
-    if args.swapper_model and not args.target_image.exists():
-        logger.error(f"目标图像文件不存在: {args.target_image}")
+    if args.swapper_model and not args.source_image.exists():
+        logger.error(f"目标图像文件不存在: {args.source_image}")
         sys.exit(1)
 
     # 注册信号处理器
@@ -110,9 +110,9 @@ def main():
         if args.swapper_model:
             logger.info("初始化人脸交换处理器...")
             logger.info(f"交换模型路径: {args.swapper_model}")
-            logger.info(f"目标图像: {args.target_image}")
+            logger.info(f"目标图像: {args.source_image}")
             face_swapper = FaceSwapper(
-                model_path=args.swapper_model, source_image_path=args.target_image
+                model_path=args.swapper_model, source_image_path=args.source_image
             )
             processors.append(face_swapper)
 
