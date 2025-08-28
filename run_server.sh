@@ -1,4 +1,4 @@
-pip install -r requirements-server.txt
+#pip install -r requirements-server.txt
 python run_server.py \
     --input-tcp tcp://localhost:8000 \
     --output-tcp tcp://localhost:8001 \
