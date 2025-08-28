@@ -14,15 +14,15 @@ class VideoCapture:
     def __init__(
         self,
         processors: List[FrameProcessor],
-        tcp_url: str,
-        tcp_output_url: str = "tcp://localhost:8554",
+        tcp_input_url: str,
+        rtsp_output_port: int = 8554,
         output_width: int = 640,
         output_height: int = 480,
         fps: int = 30,
     ):
-        self.tcp_url = tcp_url
+        self.tcp_input_url = tcp_input_url
+        self.rtsp_output_port = rtsp_output_port
         self.processors = processors
-        self.tcp_output_url = tcp_output_url
         self.output_width = output_width
         self.output_height = output_height
         self.fps = fps
@@ -36,12 +36,7 @@ class VideoCapture:
         self.logger = logging.getLogger(__name__)
 
     def _create_ffmpeg_command(self) -> list[str]:
-        """创建 FFmpeg TCP 输出命令"""
-        # 从tcp_output_url解析端口号
-        port = "8554"
-        if "://" in self.tcp_output_url:
-            port = self.tcp_output_url.split(":")[-1]
-
+        """创建 FFmpeg RTSP 输出命令"""
         command = [
             "ffmpeg",
             "-f",
@@ -63,25 +58,23 @@ class VideoCapture:
             "-b:v",
             "2000k",
             "-f",
-            "mpegts",
-            "-listen",
-            "1",
-            f"tcp://0.0.0.0:{port}",
+            "rtsp",
+            f"rtsp://0.0.0.0:{self.rtsp_output_port}/live",
         ]
         return command
 
     def _initialize_capture(self) -> bool:
         """初始化视频捕获"""
         try:
-            self.cap = cv2.VideoCapture(self.tcp_url)
+            self.cap = cv2.VideoCapture(self.tcp_input_url)
             if not self.cap.isOpened():
-                self.logger.error(f"无法打开 TCP 流: {self.tcp_url}")
+                self.logger.error(f"无法打开 TCP 流: {self.tcp_input_url}")
                 return False
 
             # 设置缓冲区大小以减少延迟
             self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-            self.logger.info(f"成功连接到 TCP 流: {self.tcp_url}")
+            self.logger.info(f"成功连接到 TCP 流: {self.tcp_input_url}")
             return True
 
         except Exception as e:
@@ -106,7 +99,7 @@ class VideoCapture:
                 return False
 
             self.logger.info(
-                f"FFmpeg TCP 服务器已初始化，输出URL: {self.tcp_output_url}"
+                f"FFmpeg RTSP 服务器已初始化，输出URL: rtsp://0.0.0.0:{self.rtsp_output_port}/live"
             )
             return True
 
